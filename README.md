@@ -1,38 +1,59 @@
-# tadori
+# clew
 
-Issue の報告から、関連するソースコードの位置を**依存関係ごと**辿り、GitHub の行リンクで返す。
+> **clew** (n.) — the ball of thread that leads out of the labyrinth. The word *clue* comes from it.
 
+Give clew a GitHub issue. It gives you back the places in the code that the issue is about — with the dependencies that connect them, as line-anchored URLs.
+
+```console
+$ clew locate kubernetes/kubernetes 118261
+
+  0.94  direct         staging/src/k8s.io/component-helpers/resource/helpers.go#L120-L168
+  0.71  caller         pkg/api/v1/resource/helpers.go#L88-L141
+  0.63  same setting   pkg/kubelet/cm/cpumanager/policy_static.go#L402-L430
 ```
-$ tadori kubernetes/kubernetes 118261
-staging/src/k8s.io/component-helpers/resource/helpers.go#L120-L168   0.94  直接
-pkg/api/v1/resource/helpers.go#L88-L141                              0.71  呼び出し元
-pkg/kubelet/cm/cpumanager/policy_static.go#L402-L430                 0.63  同じ設定キーを読む
-```
 
-## 何をするか
+Not one file. The set — because the code that causes the behaviour and the code that breaks when you change it are rarely the same lines.
 
-1. **索引** — リポジトリのシンボル（関数・型・設定キー）と、呼び出し・import・参照の辺を取り、依存グラフにする。コミット SHA を固定する。
-2. **検索** — Issue 本文・再現手順・スタックトレースを問合せにして、語彙検索と埋め込みで候補箇所を 50〜100 件引く。
-3. **再順位** — 較正された判定モデル（[Jev](https://docs.typesafe.ai/)）に「この箇所は報告された挙動の原因に関係するか」を型付き確率で答えさせ、並べ直す。生成モデルに理由を書かせるより速く、確率が候補間で比較できる。
-4. **拡張** — 上位から依存グラフを 1〜2 段たどって関係箇所を足し、重複を割り引いた最小の集合を選ぶ。
-5. **出力** — `https://github.com/<owner>/<repo>/blob/<sha>/<path>#L<a>-L<b>`。
+## How it works
 
-生成モデルを推論に使わないので、問合せ 1 件の応答は数秒で収まる。
+1. **Index** — tree-sitter extracts symbols and three kinds of edge: calls, imports, and shared identifiers (config keys, env vars, error strings). Pinned to a commit SHA, cached in SQLite.
+2. **Retrieve** — three queries are built from the issue: prose, stack-trace frames, and quoted error strings. BM25 and embeddings, union of the top 50–100.
+3. **Rerank** — a code-specialised cross-encoder scores each candidate against the issue.
+4. **Judge** — a *System One* model answers typed questions with calibrated probabilities: does this location relate to the reported behaviour, would changing it change the behaviour, does it match the reported configuration. Several questions ride in one request.
+5. **Expand and select** — walk one or two hops along the dependency graph, then pick the smallest set that covers the issue, discounting candidates that repeat what is already covered.
 
-## なぜ
+No autoregressive generation anywhere in the loop. A query against an indexed repository answers in seconds, for well under a cent.
 
-Issue を読んで「どこを見ればいいか」を探す作業は、コードを書く前に必ず起きるのに、既存の道具は全文検索か、生成モデルに探索させる agent のどちらかに寄っている。前者は語彙が一致しないと当たらず、後者は遅くて高い。判定モデルは「関係があるか」という 1 つの問いにだけ答える道具なので、この中間に置ける。
+## Swappable backends
 
-依存関係を含めるのは、原因の箇所と、直すと壊れる箇所が別だからである。1 ファイルを指すのではなく、影響範囲の集合を返す。
+Both model layers are pluggable, and clew ships with permissively licensed defaults.
 
-## 状態
+| Layer | Default | Also supported |
+|---|---|---|
+| Reranker | Qwen3-Reranker (Apache-2.0, runs locally) | SweRank (cc-by-nc-4.0, bring your own), any cross-encoder |
+| Judge | Laya or Kev (Apache-2.0, run locally) | Jev / TypeSafe, or anything else speaking `POST /v1/systemone` |
 
-設計と最初の試作の段階。動くものはまだ無い。設計は [docs/design.md](docs/design.md)。
+`/v1/systemone` has become the common interface for typed-probability models, so the judge is a configuration line, not a dependency. Calibration is kept on our side (isotonic regression against a held-out set) rather than trusted from the vendor — published third-party measurements put raw expected calibration error around 0.105, and around 0.017 after recalibration.
 
-## 評価
+## Status
 
-SWE-bench 系のデータ（Issue と正解パッチの対）で、上位 k 件に正解ファイル・正解行が入る割合を測る。既存手法の位置特定段と同じ土俵で比較できるようにする。
+Design stage. Nothing runs yet. The design is in [docs/design.md](docs/design.md) (Japanese; translation welcome).
 
-## ライセンス
+## Evaluation
+
+Measured on SWE-bench and SWE-bench Verified, where each issue comes with the patch that fixed it:
+
+- file recall @k — does the top-k contain a file the patch touched
+- line recall @k — do the returned ranges overlap the changed lines
+- set precision — how much of what we return is noise
+- latency and cost per query
+
+Baselines that must be reported alongside: BM25 alone, embeddings alone, and the same candidates ranked by a generative model. If retrieval alone solves an issue, clew should say so rather than take credit for it.
+
+## Prior work
+
+This is a crowded field and clew does not pretend otherwise. [Agentless](https://github.com/OpenAutoCoder/Agentless), [LocAgent](https://github.com/gersteinlab/LocAgent), [CoSIL](https://github.com/ZhonghaoJiang/CoSIL), [OrcaLoca](https://github.com/fishmingyu/OrcaLoca) and [SweRank](https://arxiv.org/abs/2505.07849) all locate code from issues, and SweRank reports 88.69% on SWE-bench-Lite. Two things are left on the table, and they are what clew is for: treating localisation as **set selection over a dependency graph** rather than a ranked list, and making the judgement layer a **calibrated, swappable component** instead of a prompt inside an agent.
+
+## License
 
 Apache-2.0
