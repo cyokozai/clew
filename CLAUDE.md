@@ -2,9 +2,10 @@
 
 **道具として読めること**が優先する。大規模開発の作法（層・ディレクトリ・抽象）は持ち込まない。
 
-1. **`src/clew/` にディレクトリを増やさない。1 モジュール = 1 ファイル。**
-   800 行を超えたら 2 分割まで（3 分割はしない）。
-2. **テストは src と 1 対 1。** `tests/test_<src のファイル名>.py` 1 本だけ。
+1. **パッケージを増やさない。`internal/` の下に 1 つの関心ごとに 1 パッケージ、1 パッケージ 1 ファイル。**
+   400 行を超えたら 2 分割まで（3 分割はしない）。`cmd/clew/main.go` が唯一の入口。
+2. **テストは実装と 1 対 1。** `internal/<pkg>/<pkg>_test.go` 1 本だけ。
+   **テストはネットワークへ出ない。** `compose.yaml` の test サービスは `network_mode: none` で走る。実接続が要るものは `httptest` の fixture にする。
 3. **新しい抽象（インターフェース・ラッパー）は 2 つ目の実装が来るまで作らない。**
 4. **探針・一回限りの調査コードはコミットしない。** 測った結果は docs か PR 本文へ。
 5. **索引と判定の結果はキャッシュに残す。** 同じ (Issue, コード片) を二度課金しない。
@@ -14,10 +15,15 @@
 ローカルへは入れず、常にコンテナの中で動かす。実接続は `CLEW_LIVE=1` のときだけ。
 
 ```bash
-docker compose run --rm test
-docker compose run --rm clew index <repo>
-docker compose run --rm clew locate <repo> <issue-number>
+docker compose run --rm test                       # network_mode: none
+docker compose run --rm vet
+docker compose run --rm clew locate <owner/repo> <issue-number>
+docker compose run --rm clew eval --limit 20
+docker compose run --rm tidy                       # go.sum の更新（ネットワーク要）
 ```
+
+依存は `modernc.org/sqlite`（純 Go、FTS5 と sqlite-vec 同梱）と `github.com/alecthomas/kong` だけ。
+増やすときは「標準ライブラリで書くと何行になるか」を先に見積もる。
 
 ## 外部サービス
 

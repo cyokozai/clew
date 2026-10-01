@@ -1,0 +1,41 @@
+{
+  "num_rows_total": 3,
+  "rows": [
+    {
+      "row_idx": 0,
+      "row": {
+        "repo": "astropy/astropy",
+        "instance_id": "astropy__astropy-12907",
+        "base_commit": "d16bfe05a744909de4b27f5875fe0d4ed41ce607",
+        "patch": "diff --git a/astropy/modeling/separable.py b/astropy/modeling/separable.py\n--- a/astropy/modeling/separable.py\n+++ b/astropy/modeling/separable.py\n",
+        "test_patch": "",
+        "problem_statement": "Modeling's separability_matrix does not compute separability correctly for nested CompoundModels",
+        "hints_text": "",
+        "created_at": "2022-03-03T15:14:54Z",
+        "version": "4.3",
+        "FAIL_TO_PASS": "[]",
+        "PASS_TO_PASS": "[]",
+        "environment_setup_commit": "298ccb478e6bf092953bca67a3d29dc6c35f6752",
+        "difficulty": "<15 min fix"
+      }
+    },
+    {
+      "row_idx": 1,
+      "row": {
+        "repo": "django/django",
+        "instance_id": "django__django-10914",
+        "base_commit": "e7fd69d051eaa67cb17f172a39b57253e9cb831a",
+        "patch": "diff --git a/django/conf/global_settings.py b/django/conf/global_settings.py\n",
+        "test_patch": "",
+        "problem_statement": "Set default FILE_UPLOAD_PERMISSION to 0o644.",
+        "hints_text": "",
+        "created_at": "2019-01-30T13:13:20Z",
+        "version": "3.0",
+        "FAIL_TO_PASS": "[]",
+        "PASS_TO_PASS": "[]",
+        "environment_setup_commit": "419a78300f7cd27611196e1e464d50fd0385ff27",
+        "difficulty": "<15 min fix"
+      }
+    }
+  ]
+}

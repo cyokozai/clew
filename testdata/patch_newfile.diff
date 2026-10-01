@@ -1,0 +1,10 @@
+diff --git a/sympy/core/_print_helpers.py b/sympy/core/_print_helpers.py
+new file mode 100644
+--- /dev/null
++++ b/sympy/core/_print_helpers.py
+@@ -0,0 +1,5 @@
++class Printable:
++    """Helper mixin."""
++
++    def __str__(self):
++        return "printable"

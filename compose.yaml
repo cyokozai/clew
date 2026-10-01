@@ -1,0 +1,40 @@
+services:
+  tidy:
+    build: .
+    volumes:
+      - .:/app
+      - gomod:/go/pkg/mod
+      - gocache:/root/.cache/go-build
+    command: ["go", "mod", "tidy"]
+
+  test:
+    build: .
+    network_mode: none
+    volumes:
+      - .:/app
+      - gomod:/go/pkg/mod
+      - gocache:/root/.cache/go-build
+    command: ["go", "test", "./..."]
+
+  vet:
+    build: .
+    network_mode: none
+    volumes:
+      - .:/app
+      - gomod:/go/pkg/mod
+      - gocache:/root/.cache/go-build
+    command: ["go", "vet", "./..."]
+
+  clew:
+    build: .
+    volumes:
+      - .:/app
+      - gomod:/go/pkg/mod
+      - gocache:/root/.cache/go-build
+      - clewhome:/root/.clew
+    entrypoint: ["go", "run", "./cmd/clew"]
+
+volumes:
+  gomod:
+  gocache:
+  clewhome:

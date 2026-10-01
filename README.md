@@ -37,7 +37,20 @@ Both model layers are pluggable, and clew ships with permissively licensed defau
 
 ## Status
 
-Design stage. Nothing runs yet. The design is in [docs/design.md](docs/design.md) (Japanese; translation welcome).
+**v0 works and is measured.** It is the BM25 baseline — no embeddings, no reranker, no judge, no parser. Every later stage has to earn its place against these numbers.
+
+```
+dataset=princeton-nlp/SWE-bench_Verified  N=5  gold-side=a
+k    file recall@k   acc@k
+1    0.200           0.200
+5    0.200           0.200
+10   0.400           0.400
+search latency (median): 23 ms
+```
+
+Three of the five misses have the same cause: `.github/ISSUE_TEMPLATE/*.md` takes the top slots. BM25 length normalisation rewards short boilerplate that happens to contain *issue*, *bug*, and *expected*. Fixing that is the first thing stage 2 has to do, and it is a retrieval fix, not a model one.
+
+Design: [docs/design.md](docs/design.md). Stack decisions: [docs/stack.md](docs/stack.md). Both Japanese; translation welcome.
 
 ## Evaluation
 

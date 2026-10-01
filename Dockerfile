@@ -1,0 +1,5 @@
+FROM golang:1.25
+
+WORKDIR /app
+ENV CGO_ENABLED=0
+ENV GOFLAGS=-mod=mod
