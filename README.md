@@ -31,9 +31,11 @@ Both model layers are pluggable, and clew ships with permissively licensed defau
 | Layer | Default | Also supported |
 |---|---|---|
 | Reranker | Qwen3-Reranker (Apache-2.0, runs locally) | SweRank (cc-by-nc-4.0, bring your own), any cross-encoder |
-| Judge | Laya or Kev (Apache-2.0, run locally) | Jev / TypeSafe, or anything else speaking `POST /v1/systemone` |
+| Judge | Clef-flash (Apache-2.0, open weights; via Cloudflare Workers AI or self-hosted) | Clef (27B), Laya, Kev, or anything else speaking the System One format |
 
-`/v1/systemone` has become the common interface for typed-probability models, so the judge is a configuration line, not a dependency. Calibration is kept on our side (isotonic regression against a held-out set) rather than trusted from the vendor — published third-party measurements put raw expected calibration error around 0.105, and around 0.017 after recalibration.
+The judge talks the System One API (`POST /v1/systemone`): a state plus typed questions in, per-option probabilities out. The API was defined by TypeSafe and several independent implementations speak it — Laya, Kev, and Cloudflare's [Clef](https://huggingface.co/Cloudflare/clef) models, whose Workers AI schema describes itself as an extension of it. That is enough to make the judge a configuration line rather than a dependency; it is not a claim that the format is an industry standard.
+
+Calibration is kept on our side (isotonic regression against a held-out set) rather than trusted from the model. Clef has no published calibration error and no code-specific benchmark, so clew recalibrates whatever judge is configured, redoes it whenever the judge changes, and measures judgement quality on code in its own evaluation.
 
 ## Status
 

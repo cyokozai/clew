@@ -110,3 +110,51 @@ SWE-bench（および SWE-bench Verified）の Issue と正解パッチの対を
 - 段 1〜3 のみ。段 4・5 は後
 - 測るのはファイル再現率 @5 と応答時間と費用の 3 つ
 - 目標は「BM25 単独を上回る」こと 1 点。上回らなければ索引と検索から見直す
+
+## 2026-10-05 追記: 判定器と評価対象の見直し
+
+上の段 4 と「最初の試作」は書き換えず、ここで 3 点を改める。事実は 2026-10-05 に一次情報（Cloudflare の公式資料と Hugging Face のモデルカード）で確かめた。
+
+### 決定 1: 判定器から Jev / TypeSafe を外し、Clef 系を採る
+
+候補から Jev（TypeSafe）を完全に外す。段 4 に書いた懸念（導出を要する判断で遅れる、較正の保証も SLA も無い）に加え、重みが公開されておらず差し替えの逃げ道が無い。
+
+代わりに Cloudflare の Clef 系を採る。Cloudflare が「最初のオープンソースの decision model」として出したもので、2 つある。
+
+| モデル | 規模 | ベース | Workers AI のモデル名 | 入力の料金 |
+|---|---|---|---|---|
+| Clef | 27B | Qwen3.8-27B | `@cf/cloudflare/clef` | $0.24/Mtok |
+| Clef-flash | 9B | Qwen3.5-9B | `@cf/cloudflare/clef-flash` | $0.09/Mtok |
+
+- ライセンスは Apache-2.0、重みは Hugging Face で公開されている（huggingface.co/Cloudflare/clef、/clef-flash）。
+- 入出力は state と型付きの質問 1〜64 問（noul / choice / score）を渡し、選択肢ごとの確率・confidence・usage が返る。文脈長は 65,536。スキーマは System One API と同形で、Clef 独自の拡張は画像入力だけ（Workers AI のスキーマ記述に "Clef extension to the System One API" とある）。段 4 の「複数の質問を 1 要求に載せる」設計はそのまま使える。
+- 出力の料金は記載が無い。
+
+既定は Clef-flash とし、Clef（27B）は判定器を替えたときの差を測る相手に置く。
+
+**`/v1/systemone` は TypeSafe が定義した API である。** 互換の実装（Laya・Kev・Clef の自前実行）が複数あることまでは確かめたが、「業界共通の受け口」と言える根拠は見つからなかった。README の該当表現はこの事実に合わせて直した。
+
+**較正は引き続き自前で持つ。** Clef には較正誤差（ECE）の公表値が無く、コード向けのベンチマークも無い。モデルカードにあるのは GSM8K 80.8 %・BBH 73.7 %・ChessBench 24.7 %（いずれも Clef 27B）だけである。段 4 に書いた 0.105 / 0.017 は旧判定器の第三者測定で、Clef には当てはまらない。保留集合に対する isotonic 回帰で較正し直す方針は変えず、コードでの判断力は clew の評価（判定層の寄与の差分）で測る。
+
+### 決定 2: Clef は当面 Workers AI で呼ぶ
+
+開発機（Mac）には何も入れない。呼び出しは REST の 1 本で済む。
+
+```
+POST https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai/run/@cf/cloudflare/clef-flash
+Authorization: Bearer <CLOUDFLARE_API_TOKEN>
+```
+
+環境変数は `CLOUDFLARE_ACCOUNT_ID` と `CLOUDFLARE_API_TOKEN`。無料枠は 10,000 Neurons/日で、Clef-flash は 8,182 Neurons/Mtok なので 1 日あたり約 1.22 Mtok の入力に相当する。超過分は $0.011/1,000 Neurons（Workers Paid）。従量課金の経路なので、実行の前に要求数と概算の費用を見積もり、実行の後に実測を残す。
+
+自前で動かすのは後日、GPU 機の Docker コンテナで行う。先送りにした理由は 3 つある。
+
+- 公式が配るのは Python の `systemone()` 関数で、HTTP サーバーは同梱されていない。vLLM / SGLang は chat completions しか出さないので、そのままでは System One 形式を話せない。
+- Clef-flash は BF16 で約 18 GB、Clef は H200 1 枚で試験されている。開発機（M3・16 GB、OrbStack に 8 GB）のコンテナでは GPU も使えず、載らない。
+- したがって自前で動かすときは、`systemone()` を包む小さな HTTP ラッパーを Docker イメージに焼き、GPU 機で動かす。clew 側は接続先を替えるだけで済む。
+
+### 決定 3: 本番の評価対象は SWE-bench の複数リポジトリ
+
+「最初の試作」に書いた kubernetes/kubernetes の 20 件は後回しにする。本番の評価は SWE-bench（および Verified）の複数リポジトリで行う。
+
+理由は 2 つある。v0 の実測（`docs/stack.md`）で、astropy 1 リポジトリの 5 件は分布として代表しないことが分かった。また SWE-bench には Issue ごとに正解パッチが付いており、先行研究（Agentless、LocAgent、SweRank）の数字とそのまま並べられる。kubernetes/kubernetes には正解の対が無く、規模の大きいリポジトリでの索引の大きさと応答時間を見る段で改めて扱う。

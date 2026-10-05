@@ -16,6 +16,7 @@
 | CLI | `alecthomas/kong` | cobra は最終更新が 2026-07、open issue 455 件で停滞している。kong と urfave/cli v3 が活発 |
 | SWE-bench | HuggingFace の行取得 API を直接叩く | parquet も Python も Docker も要らない。`/rows` に offset を進めて 5 回 GET すれば Verified が全件 JSON で取れる。正解ファイルは patch から出るので指標の計算は 100 行程度 |
 | 推論サイドカー | infinity（MIT） | **TEI は Qwen3-Reranker を読めない**（classifier 型が非対応、issue #643 が open）。infinity は埋め込みと再順位を 1 プロセスで出せる。判定は Laya の CPU イメージが `/v1/systemone` をそのまま提供する |
+| 判定器（2026-10-05） | Clef-flash を Workers AI（`@cf/cloudflare/clef-flash`）で呼ぶ | Apache-2.0 で重みが公開されており、System One 形式と同形の入出力を持つ。REST 1 本で呼べるので開発機に何も入れずに済む。入力 $0.09/Mtok、無料枠 10,000 Neurons/日（≒ 1.22 Mtok/日）。鍵は `CLOUDFLARE_API_TOKEN` と `CLOUDFLARE_ACCOUNT_ID`。Jev / TypeSafe は外した（`docs/design.md` の 2026-10-05 追記） |
 
 依存は `modernc.org/sqlite` と `kong` の 2 つだけ。増やすときは「標準ライブラリで書くと何行になるか」を先に見積もる。
 
@@ -24,6 +25,14 @@
 tree-sitter の Go バインディングは cgo 必須である。純 Go の再実装（`odvcencio/gotreesitter`、206 文法）は star こそ公式を上回るが、open issue 46 件に互換の不一致が並び、race の再現リポジトリも存在する。単一バイナリで配るという目的と、tree-sitter を使うという手段が、ここで正面からぶつかる。
 
 **v0 には構文解析が要らない**ので、この判断は先送りした。依存グラフを作る段で、実データを見てから決める。cgo を採るなら、クロスコンパイルは 2 ジョブ構成になる（Linux は ubuntu ランナーで `aarch64-linux-gnu-gcc`、darwin は macOS ランナーで native。**zig cc は macOS SDK を同梱しないので darwin には使えない**）。
+
+## 先送りにしたもの: 判定器の自前実行
+
+Clef / Clef-flash は重みが公開されているので自前でも動かせるが、当面は Workers AI で呼び、自前実行は後日 GPU 機の Docker コンテナで行う。
+
+- **HTTP サーバーが無い。** 公式が配るのは Python の `systemone()` 関数だけで、vLLM / SGLang は chat completions しか出さない。System One 形式を話すには、`systemone()` を包む小さな HTTP ラッパーを自分で書いてイメージに焼く必要がある。
+- **開発機に載らない。** Clef-flash は BF16 で約 18 GB、Clef は H200 1 枚で試験されている。開発機は M3・16 GB で OrbStack に 8 GB を割いており、コンテナからは GPU も使えない。
+- **clew 側の変更は接続先だけ。** 判定器は System One 形式の向こう側にあるので、Workers AI から自前実行へ移っても本体は替わらない。替えたら較正はやり直す。
 
 ## 配布
 
