@@ -16,6 +16,7 @@
 
 ```bash
 docker compose run --rm test                       # network_mode: none
+docker compose run --rm test-live                  # CLEW_LIVE=1、ネットワークあり
 docker compose run --rm vet
 docker compose run --rm clew locate <owner/repo> <issue-number>
 docker compose run --rm clew eval --limit 20
@@ -30,11 +31,11 @@ docker compose run --rm tidy                       # go.sum の更新（ネッ�
 | 用途 | 既定 | 鍵 | 備考 |
 |---|---|---|---|
 | 再順位 | Qwen3-Reranker（Apache-2.0、ローカル） | 不要 | SweRank は cc-by-nc-4.0 なので同梱しない。受け口だけ用意する |
-| 判定 | Laya / Kev（Apache-2.0、ローカル） | 不要 | `POST /v1/systemone` を話すものは全て差し替え可能 |
-| 判定（商用） | Jev / typesafe.ai | `TYPESAFE_API_KEY` | 入力 $0.042/Mtok、出力無料。レート上限は資料間で食い違うので実測で確かめる |
+| 判定 | Clef-flash（Apache-2.0、重み公開）を Workers AI で呼ぶ | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | `@cf/cloudflare/clef-flash`。入力 $0.09/Mtok（出力の料金は記載なし）。無料枠は 10,000 Neurons/日（≒ 1.22 Mtok/日）、超過は $0.011/1,000 Neurons |
+| 判定（自前で動かす、後日） | Clef / Clef-flash・Laya / Kev（Apache-2.0）を GPU 機の Docker コンテナで | 不要 | System One 形式（`POST /v1/systemone`）を話すものは全て差し替え可能。Clef の自前実行は HTTP サーバーが同梱されないので小さなラッパーを焼く |
 | Issue とコードの取得 | GitHub API | `GITHUB_TOKEN` | 5,000 要求/時 |
 
-- **判定器を 1 つに固定しない。** 既定はローカルで動く Apache-2.0 のものにし、商用 API は選択肢の 1 つとして置く。
+- **判定器を 1 つに固定しない。** 既定は重みが公開された Apache-2.0 のモデル。当面は Workers AI 経由で呼び、自前で動かす経路は差し替え先として置く。開発機（Mac）には何も入れない。
 - **較正は自前で持つ。** 判定器が返す生の確率をそのまま出さない。保留集合に対して較正し直したものだけを出力する。判定器を替えたら較正もやり直す。
 - **従量課金の経路を使うときは**、実行の前に要求数と概算の費用を見積もり、実行の後に実測を記録する。
 - 接続の切断は必ず起きる。transport 例外も再試行の対象にし、結果は永続キャッシュへ残す。
