@@ -34,6 +34,20 @@ services:
       - clewhome:/root/.clew
     entrypoint: ["go", "run", "./cmd/clew"]
 
+  # 実接続のテスト。関数名に Live を含むものだけを CLEW_LIVE=1 で走らせる。値はホストの環境から受け渡すだけ。
+  test-live:
+    build: .
+    volumes:
+      - .:/app
+      - gomod:/go/pkg/mod
+      - gocache:/root/.cache/go-build
+    environment:
+      - CLEW_LIVE=1
+      - GITHUB_TOKEN
+      - CLOUDFLARE_ACCOUNT_ID
+      - CLOUDFLARE_API_TOKEN
+    command: ["go", "test", "-count=1", "-run", "Live", "./..."]
+
 volumes:
   gomod:
   gocache:
