@@ -32,6 +32,9 @@ services:
       - gomod:/go/pkg/mod
       - gocache:/root/.cache/go-build
       - clewhome:/root/.clew
+    environment:
+      - CLOUDFLARE_ACCOUNT_ID
+      - CLOUDFLARE_API_TOKEN
     entrypoint: ["go", "run", "./cmd/clew"]
 
 volumes:
